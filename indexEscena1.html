@@ -1,0 +1,506 @@
+<html>
+
+<head>
+<title>Ray Casting Test</title>
+<!--
+Test to implement a raycasting
+-->
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+<script src="gl-matrix/common.js"></script>
+<script type="text/javascript" src="webgl-utils.js"></script>
+<script type="text/javascript" src="gl-matrix/vec3.js"></script>
+<script type="text/javascript" src="gl-matrix/vec2.js"></script>
+<script type="text/javascript" src="gl-matrix/vec4.js"></script>
+<script type="text/javascript" src="gl-matrix/vec4.js"></script>
+<script type="text/javascript" src="gl-matrix/mat4.js"></script>
+<script type="text/javascript" src="gl-matrix/mat3.js"></script>
+<script type="text/javascript" src="gl-matrix/quat.js"></script>
+
+
+<script type="text/javascript">
+// Listener
+window.addEventListener('keydown', function(event){
+    var key = event.keyCode;
+    var correcte= true;
+    var incrementM = parseFloat(document.getElementById("incM").value);
+    var incrementA = parseFloat(document.getElementById("incA").value);
+    if (key == 38) { //up: ^
+        Camera.position[1] = Camera.position[1]+incrementM;
+    }else if (key == 40) { //down: v
+        Camera.position[1] = Camera.position[1]-incrementM;
+    }else if (key == 65) { //left: A
+        var vH = vec3.cross([], Camera.centre, Camera.up);
+        Camera.position[2] = Camera.position[2]-(incrementM*vH[2]);
+        Camera.position[1] = Camera.position[1]-(incrementM*vH[1]);
+        Camera.position[0] = Camera.position[0]-(incrementM*vH[0]);
+    }else if (key == 68) { //right: D
+        var vH = vec3.cross([], Camera.centre, Camera.up);
+        Camera.position[2] = Camera.position[2]+(incrementM*vH[2]);
+        Camera.position[1] = Camera.position[1]+(incrementM*vH[1]);
+        Camera.position[0] = Camera.position[0]+(incrementM*vH[0]);
+    }else if (key == 87) { //forward: W
+        Camera.position[2] = Camera.position[2]+(incrementM*Camera.centre[2]);
+        Camera.position[1] = Camera.position[1]+(incrementM*Camera.centre[1]);
+        Camera.position[0] = Camera.position[0]+(incrementM*Camera.centre[0]);
+    }else if (key == 83) { //back: S
+        Camera.position[2] = Camera.position[2]-(incrementM*Camera.centre[2]);
+        Camera.position[1] = Camera.position[1]-(incrementM*Camera.centre[1]);
+        Camera.position[0] = Camera.position[0]-(incrementM*Camera.centre[0]);
+    }else if (key == 37) { //turn left: <-
+        Camera.angleXZ = Camera.angleXZ - incrementA;
+        Camera.centre[0] = Math.cos(rad(Camera.angleXZ));
+        Camera.centre[2] = Math.sin(rad(Camera.angleXZ));
+        Camera.centre = vec3.normalize([], Camera.centre);
+    }else if (key == 39) { //turn right: ->
+        Camera.angleXZ = Camera.angleXZ + incrementA;
+        Camera.centre[0] = Math.cos(rad(Camera.angleXZ));
+        Camera.centre[2] = Math.sin(rad(Camera.angleXZ));
+        Camera.centre = vec3.normalize([], Camera.centre);
+    }else if (key == 27) { //restart
+        Camera = {
+            position: [0,0,0],
+            centre: [0,0,1], 
+            up : [0,1,0],
+            angleH: 45,
+            rati: 1.0,
+            angleXZ: 90,
+        };
+    }else {
+        correcte= false;
+    }
+    if (correcte) {
+        RtStart();
+    }
+});
+
+// Var that contains all the screen information;
+var Screen = {
+	width  : 0,
+	height : 0,
+	canvas : null,
+	context : null,
+	buffer : null,
+};
+var Camera = {
+	position: [0,0,0],
+        centre: vec3.normalize([], [0,0,1]),
+	up : [0,1,0],
+        angleH: 45,
+        rati: 1.0,
+        angleXZ: 90,
+    }
+
+var Scene = {
+    // Escena 1: 
+    // Dos esfères que s'interseccionen entre elles. 
+    // L'esfèra vermella també intersecciona amb el pla.
+    // Un plà sense horitzontal al 'terra' que ho reflecteix tot.
+    // Una sola llum situada a dalt a l'esquerra.
+    geometry: [
+        new Pla([0,-1,0], [0,1,0], [0,0,0,1], 1, 100, 1),
+        new Sphere (0.4, [0.5, 0, 5.8], [0,0,1,1], 0.5, 100, 0),
+        new Sphere (0.8, [-1, 0, 6], [1,0,0,1], 0.5, 100, 0),
+    ]
+};
+
+var lights = {
+    data: [
+        new Light([2, 2, 3], [10,10,10,10]),
+    ]
+};
+
+
+function rad(angle) {
+    return (angle/180)*Math.PI;
+}
+
+//Function that initializes the RayTracing
+function RtStart(){
+	Screen.canvas = document.getElementById("glcanvas");
+	if (Screen.canvas == null)	{
+		alert("Invalid element: " + id);
+		return;
+	}
+	Screen.context = Screen.canvas.getContext("2d");
+	if(Screen.context == null){
+		alert("Could not get context");
+		return;
+	}
+	Screen.width  = Screen.canvas.width;
+	Screen.height = Screen.canvas.height;
+	Screen.buffer = Screen.context.createImageData(Screen.width,Screen.height);
+	//We paint the whole scene to check if it works
+	var color = vec4.fromValues(1.0,1.0,0.0,1.0);
+	createColor(color);
+	Screen.context.putImageData(Screen.buffer,0,0);
+	RayCasting(Screen,Camera);
+	Screen.context.putImageData(Screen.buffer,0,0);
+}
+
+function createColor(color){
+	var size = Screen.width *Screen.height*4;
+	for (var i = 0; i< size; i+=4)
+		qplot(i,color);
+}
+
+// Plots a point at (x,y)
+function plot(x,y,color){
+	var index = (x+y*Screen.buffer.width)*4;
+	Screen.buffer.data[index+0] = color[0] * 255;
+	Screen.buffer.data[index+1] = color[1] * 255;
+	Screen.buffer.data[index+2] = color[2] * 255;
+	Screen.buffer.data[index+3] = color[3] * 255;
+	return index;
+}
+
+function qplot(index,color){
+	Screen.buffer.data[index+0] = color[0] * 255;
+	Screen.buffer.data[index+1] = color[1] * 255;
+	Screen.buffer.data[index+2] = color[2] * 255;
+	Screen.buffer.data[index+3] = color[3] * 255;
+}
+
+
+function computeRay(Cam,Scr,x,y){
+    return calcularVD(Cam,Scr,x,y);
+}
+
+function calcularVD(Cam,Scr,x,y) {
+    var O = Cam.position;
+    var C = vec3.sub([], Cam.position, Cam.centre);
+    var up = Cam.up;
+    var oH = 2*Math.tan(((Math.PI*Cam.angleH)/180)/2);
+    var rati = Cam.rati;
+    var H = Scr.height;
+    var W = Scr.width;
+    
+    var Z = vec3.sub([], O, C);
+    var X = vec3.cross([], up, Z);
+    var Y = vec3.cross([], X, Z);
+    
+    var w = 2*Math.tan(oH/2);
+    var h = w * rati;
+    
+    var dx = vec3.scale([],X, w/W);
+    var dy = vec3.scale([],Y, h/H);
+    var P = vec3.sub([], O, Z);
+    var P0 = vec3.add([], vec3.sub([], P, vec3.scale([],dx,(W-1)/2)), vec3.scale([],dy,(H-1)/2));
+    var r_origin = vec3.sub([], vec3.add([], P0, vec3.scale([], dx, x)), vec3.scale([], dy, y));
+    var r_dir = vec3.normalize([], vec3.sub([], r_origin, O));
+    return new Ray(r_origin, r_dir);
+}
+
+
+function intersecScene(Scene, rSource, rDirection){
+    var color = [1.0,1.0,1.0,1.0];
+    var first_hit = false;
+    for (var i = 0; i< Scene.geometry.length; i+=1) {
+        var hit = Scene.geometry[i].interseccio(rSource, rDirection);
+        if (hit && (!first_hit || vec3.dist(rSource, hit.point) < vec3.dist(rSource, first_hit.point))) {
+            color = Scene.geometry[i].color;
+            first_hit = hit;
+        }
+    }
+    return color;
+}
+
+
+function RayCasting(Screen,Camera){
+    var size = Screen.width*Screen.height;
+    for(var x = 0; x < Screen.width; x++){
+            for (var y = 0; y < Screen.height; y++){
+                    var ray = computeRay(Camera,Screen,x,y);
+                    //var color = intersecScene(Scene, ray.O,ray.vd);
+                    var color = RayTrace(Scene, ray, 0);
+                    plot(x,y,color);
+            }
+    }
+}
+
+function RayTrace(scene, r, actual) {
+    actual = actual+1;
+    var hit = intersectSceneRT(scene, r);
+    if (!hit) return [0,0,0,1];
+    var Ilumination = ambient(hit);
+    for (var i = 0; i< lights.data.length; i+=1) {
+        var iD = [0,0,0,0];
+        var iE = [0,0,0,0];
+        var iR = [0,0,0,0];
+        var lg = lights.data[i];
+        if (lightVisible(lg, hit, scene)) {
+            iD = compute_diffuse(lg, hit);
+            iE = compute_specular(lg, hit, r);
+        }
+        if (actual < 3) {
+           iR = compute_reflection(Ilumination, lg, hit, r, scene, actual);
+        }
+        Ilumination = vec4.add([], vec4.add([], iE, iR), vec4.add([], Ilumination, iD));//vec4.add([], vec4.add([], Ilumination, iR), vec4.add([], iD, iE));
+    }
+    return Ilumination;
+}
+
+function compute_diffuse(lg, hit) {
+    var ldir = vec3.normalize([],vec3.sub([], lg.position, hit.point))
+    var intensity = vec4.scale([], lg.color, 1/vec3.dist(lg.position, hit.point));
+    var cos0 = vec3.dot(ldir, hit.normal);
+    if (cos0 < 0) cos0 = 0;
+    var new_I = vec4.multiply([],hit.geometry.color, vec4.scale([], intensity, cos0));
+    return new_I;
+}
+
+function compute_specular(lg, hit, r) {
+    var v = vec3.negate([], r.vd);
+    var l = vec3.normalize([],vec3.sub([], hit.point, lg.position))
+    var n = hit.normal;
+    var aux = 2*vec3.dot(n, l);
+    var r = vec3.sub([], vec3.scale([], n, aux), l);
+    var vr = Math.pow(Math.max(0, vec3.dot(v, r)), hit.geometry.kespecular);
+    return vec4.scale([], lg.color, vr*hit.geometry.cespecular);
+}
+
+function compute_reflection(Ilumination, lg, hit, r, scene, actual) {
+    var I = r.vd;
+    var N = hit.normal;
+    var R = vec3.normalize([], vec3.sub([], I, vec3.scale([], vec3.scale([], N, vec3.dot(N, I)), 2)));
+    var bias = 0.000000001;
+    var r_origin = vec3.add([], hit.point, vec3.scale([], hit.normal, bias));
+    return vec4.scale([], RayTrace(scene, new Ray(r_origin, R), actual), hit.geometry.crefleccio);
+}
+
+
+function ambient(hit) {
+    // tornar llum ambient, no n'hi ha
+    return vec4.multiply([], hit.geometry.color, [0.1,0.1,0.1,1]);
+}
+
+function lightVisible(light, hit, scene) {
+    var bias = 0.000000001;
+    var light_direction = vec3.normalize([],vec3.sub([], light.position, hit.point)); 
+    var l_origin = vec3.add([], light.position, vec3.scale([], hit.normal, bias));
+    var lhit = intersectSceneRT(scene, new Ray(l_origin, light_direction));
+    if (lhit) {
+        if (vec3.dist(hit.point, light.position) > vec3.dist(lhit.point, light.position)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+function intersectSceneRT(scene, ray){
+    var first_hit = false;
+    for (var i = 0; i< scene.geometry.length; i+=1) {
+        var hit = scene.geometry[i].interseccio(ray.O, ray.vd);
+        if (hit && (!first_hit || vec3.dist(ray.O,hit.point) < vec3.dist(ray.O,first_hit.point))) {
+            first_hit = hit;
+        }
+    }
+    return first_hit;
+}
+
+function Ray(obs, calculatedVD) {
+    this.O = obs;
+    this.vd = calculatedVD;
+}
+
+function Hit(p, n, g) {
+    this.point = p;
+    this.normal = n;
+    this.geometry = g;
+}
+
+function Sphere(r, cn, cl, ce, ke, cr) {
+    this.radius = r;
+    this.center = cn;
+    this.color = cl;
+    this.cespecular = ce;
+    this.kespecular = ke;
+    this.crefleccio = cr;
+}
+
+Sphere.prototype.interseccio = function(rSource, rDirection) {
+        var a = 1;
+        var b = 2*vec3.dot(rDirection, vec3.sub([], rSource, this.center));
+        var c = vec3.length(vec3.sub([], rSource, this.center))*vec3.length(vec3.sub([], rSource, this.center)) -  (2*this.radius);
+        
+        var denom = (2*a);
+        var aux = (b*b)-(4*a*c);
+        if (denom == 0 || aux < 0) return false;
+        var sol1 = (-b+(Math.sqrt(aux)))/denom;
+        var sol2 = (-b-(Math.sqrt(aux)))/denom;
+      
+        if (sol1 > 0 && sol2 > 0) return false;
+        var P1 = sol1;
+        if (vec3.dist(rSource, sol1) > vec3.dist(rSource, sol2)) {
+            P1 = sol2;
+        }
+        var p = vec3.add([], rSource, vec3.scale([], rDirection, P1));
+        var n = vec3.normalize([], vec3.scale([], vec3.sub([], p, this.center), 1/this.radius));
+        return new Hit(p, n, this);
+ };
+
+
+function Pla(p, n, cl, ce, ke, cr) {
+    this.punt = p;
+    this.normal = n;
+    this.color = cl;
+    this.cespecular = ce;
+    this.kespecular = ke;
+    this.crefleccio = cr;
+}
+
+Pla.prototype.interseccio = function(rSource, rDirection) {
+        var normal = vec3.normalize([], this.normal);
+        var rDir = vec3.normalize([], rDirection);
+        var denom = vec3.dot(normal, rDir);
+        if (denom > 0.000001) {
+            var t = (vec3.dot(vec3.sub([], this.punt, rSource), normal)) / denom;
+            if (t >= 0) return false;
+            var p = vec3.add([], rSource, vec3.scale([], rDir, t));
+            var n = vec3.normalize([], this.normal);
+            return new Hit(p, n, this);
+        }
+        normal = vec3.negate([], vec3.normalize([], this.normal));
+        denom = vec3.dot(normal, rDir);
+        if (denom > 0.000001) {
+            var t = (vec3.dot(vec3.sub([], this.punt, rSource), normal)) / denom;
+            if (t >= 0) return false;
+            var p = vec3.add([], rSource, vec3.scale([], rDir, t));
+            var n = vec3.normalize([], this.normal);
+            return new Hit(p, normal, this);
+        }
+        return false;
+ };
+ 
+ 
+
+function Triangle(pa, pb, pc, cl, ce, ke, cr) {
+    this.puntA = pa;
+    this.puntB = pb;
+    this.puntC = pc;
+    this.normal = vec3.normalize([],vec3.cross([], vec3.sub([], pb, pa), vec3.sub([], pc, pa)));
+    this.color = cl;
+    this.cespecular = ce;
+    this.kespecular = ke;
+    this.crefleccio = cr;
+}
+Triangle.prototype.interseccio = function(rSource, rDirection) {
+        var normal = vec3.normalize([], this.normal);
+        var rDir = vec3.normalize([], rDirection);
+        var denom = vec3.dot(normal, rDir);
+        if (denom > 0.000001) {
+            var t = (vec3.dot(vec3.sub([], this.puntA, rSource), normal)) / denom;
+            if (t >= 0) return false;
+            var p = vec3.add([], rSource, vec3.scale([], rDir, t));
+            var edge0 = vec3.sub([], this.puntB, this.puntA);
+            var c0 = vec3.sub([], p, this.puntA);
+            if (vec3.dot(normal, vec3.cross([], edge0, c0)) < 0) return false;
+            var edge1 = vec3.sub([], this.puntC, this.puntB);
+            var c1 = vec3.sub([], p, this.puntB);
+            if (vec3.dot(normal, vec3.cross([], edge1, c1)) < 0) return false;
+            var edge2 = vec3.sub([], this.puntA, this.puntC);
+            var c2 = vec3.sub([], p, this.puntC);
+            if (vec3.dot(normal, vec3.cross([], edge2, c2)) < 0) return false;
+            var n = vec3.normalize([], this.normal);
+            return new Hit(p, n, this);
+        }
+        normal = vec3.negate([], vec3.normalize([], this.normal));
+        denom = vec3.dot(normal, rDir);
+        if (denom > 0.000001) {
+            var t = (vec3.dot(vec3.sub([], this.puntA, rSource), normal)) / denom;
+            if (t >= 0) return false;
+            var p = vec3.add([], rSource, vec3.scale([], rDir, t));
+            var edge0 = vec3.sub([], this.puntB, this.puntA);
+            var c0 = vec3.sub([], p, this.puntA);
+            if (vec3.dot(normal, vec3.cross([], edge0, c0)) >= 0) return false;
+            var edge1 = vec3.sub([], this.puntC, this.puntB);
+            var c1 = vec3.sub([], p, this.puntB);
+            if (vec3.dot(normal, vec3.cross([], edge1, c1)) >= 0) return false;
+            var edge2 = vec3.sub([], this.puntA, this.puntC);
+            var c2 = vec3.sub([], p, this.puntC);
+            if (vec3.dot(normal, vec3.cross([], edge2, c2)) >= 0) return false;
+            var n = vec3.normalize([], this.normal);
+            return new Hit(p, n, this);
+        }
+        return false;
+ };
+Triangle.prototype.interseccioO = function(rSource, rDirection) {
+        var normal = vec3.normalize([], this.normal);
+        var rDir = vec3.normalize([], rDirection);
+        var denom = vec3.dot(normal, rDir);
+        if (denom > 0.000001) {
+            var t = (vec3.dot(vec3.sub([], this.puntA, rSource), normal)) / denom;
+            if (t >= 0) return false;
+            var P = vec3.add([], rSource, vec3.scale([], rDir, t));
+            var edge0 = vec3.sub([], this.puntB, this.puntA);
+            var c0 = vec3.sub([], P, this.puntA);
+            if (vec3.dot(normal, vec3.cross([], edge0, c0)) < 0) return false;
+            var edge1 = vec3.sub([], this.puntC, this.puntB);
+            var c1 = vec3.sub([], P, this.puntB);
+            if (vec3.dot(normal, vec3.cross([], edge1, c1)) < 0) return false;
+            var edge2 = vec3.sub([], this.puntA, this.puntC);
+            var c2 = vec3.sub([], P, this.puntC);
+            if (vec3.dot(normal, vec3.cross([], edge2, c2)) < 0) return false;
+            return new Hit(P, normal, this);
+        }
+        return false;
+ };
+ 
+function Light(p, c) {
+    this.position = p;
+    this.color = c;
+}
+ 
+function solveQuadratic(a, b, c) {
+    var x0;
+    var x1;
+    var discr = b * b - 4 * a * c;
+    if (discr < 0) return false;
+    else if (discr === 0) {
+        x0 = - 0.5 * b / a;
+        x1 = x0;
+    }else {
+        var q;
+        if (b > 0) {
+            q = -0.5 * (b + Math.sqrt(discr));
+        }else {
+            q = -0.5 * (b - Math.sqrt(discr));
+        }
+        x0 = q / a;
+        x1 = c / q;
+    }
+    if (x0 > x1) {
+        
+        var aux = x0;
+        x0 = x1;
+        x1 = aux;
+    }
+    return [x0, x1];
+}
+
+</script>
+
+
+<style type="text/css">
+#loadingtext {
+position:absolute;
+top:250px;
+left:150px;
+	font-size:2em;
+color: white;
+}
+</style>
+
+</head>
+
+
+<body onload="RtStart();">
+<h1>Ray Casting Test</h1>
+
+<canvas id="glcanvas" style="border: solid;" width="400" height="400"></canvas><br>
+Increment Moviment: <input type="text" id="incM" value="0.1"><br>
+Increment Rotació: <input type="text"   id="incA" value="0.05">
+</body>
+
+</html>

@@ -1,0 +1,44 @@
+
+EXECUCIÓ
+============
+
+Per executar la pràctica només cal obrir amb el navegador qualsevol dels 4 fitxers "indexEscenaN.html".
+
+Aquests 4 fitxers son identics (tenen el mateix codi) amb una diferència: la Escena que es defineix.
+
+   - Escena 1: 	Dos esfères que s'interseccionen entre elles. 
+		L'esfèra vermella també intersecciona amb el pla.
+     		Un plà sense horitzontal al 'terra' que ho reflecteix tot.
+     		Una sola llum situada a dalt a l'esquerra.
+
+   - Escena 2: 	Dos plans (un horitzontal i un vertical) que interseccionen. No reflecteixen res.
+     		Dos esferes que reflecteixen.
+     		Una esfera que no reflecteix.
+     		Una sola llum situada a dalt al centre de color blau.
+
+   - Escena 3:	Quatre triangles que formen una piramide.
+         	Una esfera a dalt de la piramide que intersecciona amb ella.
+         	Un pla horitzontal al 'terra' que reflecteix.
+         	Una sola llum situada a dalt al centre.
+
+   - Escena 4:	Un triangle que en vertical que reflecteix.
+         	Una esfera al davant que reflecteix.
+         	Un pla horitzontal al 'terra' que reflecteix.
+         	Una sola llum situada a dalt al centre i una situada a darrera el triangle.
+
+
+CONTROLS DE LA CÀMERA
+=======================
+
+El numero de unitats que es mou la càmera i el numero de graus que gira es mostren en la pàgina web i es poden modificar en qualsevol moment.
+
+   - W: avançar en la direcció en la que mira la càmera.
+   - S: retrocedir en la direcció contraria en la que mira la càmera.
+   - A: moure't lateralment cap a l'esquerra respecte la direcció en la que mira la càmera.
+   - D: moure't lateralment cap a la dreta respecte la direcció en la que mira la càmera.
+   - -> (fletxa dreta): girar la càmera cap a la dreta.
+   - <- (fletxa esquerra): girar la càmera cap a l'esquerra.
+   - ^ (fletxa amunt): moure la càmera en vertical amunt.
+   - v (fletxa avall): moure la càmera en vertical avall.
+
+
